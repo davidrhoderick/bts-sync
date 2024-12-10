@@ -103,9 +103,6 @@ export class SyncCommand extends CommandRunner {
     console.log('Running custom script for Guidewire...');
     await this.generateGuidewireTypes(guidewireDir);
 
-    console.log('Cleaning up Guidewire repo...');
-    fs.rmSync(guidewireDir, { recursive: true, force: true });
-
     console.log('Generating Apollo Server types...');
     await this.generateServerTypes(schemaDir);
 
@@ -143,7 +140,13 @@ export class SyncCommand extends CommandRunner {
 
     try {
       const swaggerPath = path.join(guidewireDir, 'openapi/swagger.json');
-      const outputPath = './guidewire-types.ts';
+      const generatedPath = './generated';
+      const outputPath = path.join(generatedPath, 'guidewire-types.ts');
+
+      if (!fs.existsSync(generatedPath)) {
+        fs.mkdirSync(generatedPath, { recursive: true });
+        console.log(`Created: ${generatedPath}`);
+      }
 
       // Read OpenAPI spec
       const openAPISpec = fs.readFileSync(swaggerPath, 'utf-8');
@@ -172,6 +175,9 @@ export class SyncCommand extends CommandRunner {
     }
 
     console.log('Generated Guidewire types successfully.');
+
+    console.log('Cleaning up Guidewire repo...');
+    fs.rmSync(guidewireDir, { recursive: true, force: true });
   }
 
   private async promptForHash(repoName: string): Promise<string> {

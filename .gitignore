@@ -2,7 +2,7 @@
 /dist
 /node_modules
 /build
-guidewire-types.ts
+/generated
 
 # Logs
 logs
