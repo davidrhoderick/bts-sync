@@ -1,17 +1,18 @@
 import {
   Command,
   CommandRunner,
-  // Option,
   QuestionSet,
   Question,
   InquirerService,
   Option,
 } from 'nest-commander';
-// import simpleGit from 'simple-git';
+import simpleGit from 'simple-git';
 // import { generate } from '@graphql-codegen/cli';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Inject } from '@nestjs/common';
+import openapiTS from 'openapi-typescript';
+import * as ts from 'typescript';
 
 @Command({ name: 'bts-sync', options: { isDefault: true } })
 export class SyncCommand extends CommandRunner {
@@ -60,12 +61,9 @@ export class SyncCommand extends CommandRunner {
     }
   }
 
-  private async syncFrontend(schemaRepo: string, _schemaHash: string) {
-    // const git = simpleGit();
-
+  private async syncFrontend(schemaRepo: string, schemaHash: string) {
     console.log(`Cloning schema repository: ${schemaRepo}`);
     const schemaDir = './schema-repo';
-    // await git.clone(schemaRepo, schemaDir, ['--depth', '1', '--branch', schemaHash]);
 
     console.log('Scaffolding operations folder...');
     this.scaffoldOperations();
@@ -77,21 +75,36 @@ export class SyncCommand extends CommandRunner {
   private async syncBackend(
     schemaRepo: string,
     guidewireRepo: string,
-    _schemaHash: string,
-    _guidewireHash: string,
+    schemaHash: string,
+    guidewireHash: string,
   ) {
-    // const git = simpleGit();
+    const git = simpleGit();
 
     console.log(`Cloning schema repository: ${schemaRepo}`);
     const schemaDir = './schema-repo';
-    // await git.clone(schemaRepo, schemaDir, ['--depth', '1', '--branch', schemaHash]);
+    await git.clone(schemaRepo, schemaDir, [
+      '--depth',
+      '1',
+      '--branch',
+      schemaHash,
+    ]);
+    console.log('Cleaning up schema repo...');
+    fs.rmSync(schemaDir, { recursive: true, force: true });
 
     console.log(`Cloning Guidewire repository: ${guidewireRepo}`);
     const guidewireDir = './guidewire-repo';
-    // await git.clone(guidewireRepo, guidewireDir, ['--depth', '1', '--branch', guidewireHash]);
+    await git.clone(guidewireRepo, guidewireDir, [
+      '--depth',
+      '1',
+      '--branch',
+      guidewireHash,
+    ]);
 
     console.log('Running custom script for Guidewire...');
-    await this.runCustomScript(guidewireDir);
+    await this.generateGuidewireTypes(guidewireDir);
+
+    console.log('Cleaning up Guidewire repo...');
+    fs.rmSync(guidewireDir, { recursive: true, force: true });
 
     console.log('Generating Apollo Server types...');
     await this.generateServerTypes(schemaDir);
@@ -114,41 +127,51 @@ export class SyncCommand extends CommandRunner {
   }
 
   private async generateClientTypes(schemaDir: string) {
-    // await generate({
-    //   schema: `${schemaDir}/schema.graphql`,
-    //   documents: './operations/**/*.graphql',
-    //   generates: {
-    //     './src/generated/client-types.ts': {
-    //       plugins: ['typescript', 'typescript-operations'],
-    //     },
-    //   },
-    // });
     console.log('Generated Apollo Client types successfully.');
   }
 
   private async generateServerTypes(schemaDir: string) {
-    // await generate({
-    //   schema: `${schemaDir}/schema.graphql`,
-    //   generates: {
-    //     './src/generated/server-types.ts': {
-    //       plugins: ['typescript', 'typescript-resolvers'],
-    //     },
-    //   },
-    // });
     console.log('Generated Apollo Server types successfully.');
   }
 
   private createApolloSchema(schemaDir: string) {
-    // const resolvers = loadFilesSync('./src/resolvers/**/*.ts');
-    // const typeDefs = fs.readFileSync(`${schemaDir}/schema.graphql`, 'utf-8');
-
-    // const schema = makeExecutableSchema({ typeDefs, resolvers });
     console.log('Apollo Server schema created successfully.');
   }
 
-  private async runCustomScript(guidewireDir: string) {
-    console.log(`Running custom script in ${guidewireDir}...`);
-    console.log('Custom script executed successfully.');
+  private async generateGuidewireTypes(guidewireDir: string) {
+    console.log(`Generating Guidewire types for ${guidewireDir}...`);
+
+    try {
+      const swaggerPath = path.join(guidewireDir, 'openapi/swagger.json');
+      const outputPath = './guidewire-types.ts';
+
+      // Read OpenAPI spec
+      const openAPISpec = fs.readFileSync(swaggerPath, 'utf-8');
+
+      // Generate TypeScript types
+      const nodes = await openapiTS(openAPISpec);
+
+      const printer = ts.createPrinter();
+      const file = ts.createSourceFile(
+        'openapi-types.ts',
+        '',
+        ts.ScriptTarget.Latest,
+        false,
+        ts.ScriptKind.TS,
+      );
+
+      const types = nodes
+        .map((node) => printer.printNode(ts.EmitHint.Unspecified, node, file))
+        .join('\n');
+
+      // Write the generated types to file
+      fs.writeFileSync(outputPath, types);
+      console.log(`TypeScript types generated successfully at: ${outputPath}`);
+    } catch (error) {
+      console.error('Error generating OpenAPI types:', error);
+    }
+
+    console.log('Generated Guidewire types successfully.');
   }
 
   private async promptForHash(repoName: string): Promise<string> {

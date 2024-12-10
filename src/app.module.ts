@@ -8,9 +8,8 @@ import {
 const ConfigProvider = {
   provide: 'config',
   useValue: {
-    defaultSyncType: 'frontend',
-    schemaRepo: 'https://github.com/your-org/schema-repo.git',
-    guidewireRepo: 'https://github.com/your-org/guidewire-repo.git',
+    schemaRepo: 'git@github.com:davidrhoderick/bts-schema.git',
+    guidewireRepo: 'git@github.com:davidrhoderick/bts-rest.git',
   },
 };
 
@@ -19,7 +18,7 @@ const ConfigProvider = {
     SyncCommand,
     SchemaHashQuestionSet,
     GuidewireHashQuestionSet,
-    ConfigProvider, // Add the config provider
+    ConfigProvider,
   ],
 })
 export class AppModule {}
