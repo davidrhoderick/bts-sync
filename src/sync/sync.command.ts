@@ -155,7 +155,7 @@ export class SyncCommand extends CommandRunner {
       const file = ts.createSourceFile(
         'openapi-types.ts',
         '',
-        ts.ScriptTarget.Latest,
+        ts.ScriptTarget.ESNext,
         false,
         ts.ScriptKind.TS,
       );
