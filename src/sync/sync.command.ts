@@ -199,7 +199,7 @@ export class SyncCommand extends CommandRunner {
     const spinner = ora('Generating Guidewire types...').start();
 
     try {
-      const swaggerPath = join(this.guidewireDir, 'openapi/swagger.json');
+      const swaggerPath = join(this.guidewireDir, 'openapi/doc.json');
       const outputFolder = './src/generated';
       const outputPath = join(outputFolder, 'guidewire-types.ts');
 
