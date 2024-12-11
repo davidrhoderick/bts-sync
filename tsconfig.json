@@ -18,5 +18,11 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "noUncheckedIndexedAccess": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "guidewire-repo",
+    "schema-repo"
+  ]
 }

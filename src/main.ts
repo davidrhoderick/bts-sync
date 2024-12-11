@@ -3,7 +3,7 @@ import { CommandFactory } from 'nest-commander';
 
 async function bootstrap() {
   await CommandFactory.run(AppModule, {
-    logger: ['log', 'error', 'warn'], // Enable relevant logs
+    // logger: ['log', 'error', 'warn'], // Enable relevant logs
   });
 }
 bootstrap();
