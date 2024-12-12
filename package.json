@@ -5,8 +5,11 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
+  "bin": {
+    "bts-sync": "./bin/main.js"
+  },
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && node scripts/create-bin.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

@@ -23,6 +23,7 @@
     "node_modules",
     "dist",
     "guidewire-repo",
-    "schema-repo"
+    "schema-repo",
+    "scripts"
   ]
 }
