@@ -106,8 +106,12 @@ export class SyncCommand extends CommandRunner {
     const spinner = ora('Stitching schemas together...').start();
 
     try {
-      const schemaDir = join(this.graphQLDir, 'src/schema/**');
-      const outputPath = './src/generated/schema.graphql';
+      const schemaDir = join(this.graphQLDir, 'src/schema');
+      const outputDir = './src/generated';
+
+      if (!existsSync(outputDir)) mkdirSync(outputDir);
+
+      const outputPath = join(outputDir, 'schema.graphql');
 
       const schemas = this.readSchemasFromDirectory(schemaDir);
 
