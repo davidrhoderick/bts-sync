@@ -10,8 +10,8 @@ import { RepoService } from './sync/repo.service';
 const ConfigProvider = {
   provide: 'config',
   useValue: {
-    schemaRepo: 'git@github.com:davidrhoderick/bts-schema.git',
-    guidewireRepo: 'git@github.com:davidrhoderick/bts-rest.git',
+    graphQLRepo: 'git@github.com:davidrhoderick/bts-apollo-server.git',
+    pcRepo: 'git@github.com:davidrhoderick/bts-rest.git',
   },
 };
 

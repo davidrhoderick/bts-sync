@@ -17,7 +17,7 @@ export class RepoService {
   }
 
   async cloneAndCheckout(hash?: string | null): Promise<void> {
-    this.logger.log(`Cloning ${this.nickname}...`);
+    this.logger.log(`Cloning ${this.nickname} repository...`);
     await this.git.clone(this.repoUrl, this.folder);
 
     const repoGit = simpleGit(this.folder);
@@ -35,7 +35,7 @@ export class RepoService {
   }
 
   cleanup(): void {
-    this.logger.log(`Cleaning up ${this.nickname} directory...`);
+    this.logger.log(`Cleaning up ${this.nickname} repository directory...`);
     rmSync(this.folder, { recursive: true, force: true });
   }
 

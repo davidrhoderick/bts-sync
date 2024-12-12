@@ -5,8 +5,14 @@ import {
   Option,
 } from 'nest-commander';
 import { RepoService } from './repo.service';
-import { generate } from '@graphql-codegen/cli';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'fs';
+import { buildSchema, printSchema } from 'graphql';
 import { join } from 'path';
 import { Inject, Logger } from '@nestjs/common';
 import openapiTS from 'openapi-typescript';
@@ -17,18 +23,17 @@ import {
   ScriptTarget,
   createSourceFile,
 } from 'typescript';
-import ora from 'ora';
-import { defineConfig } from '@eddeee888/gcg-typescript-resolver-files';
+import * as ora from 'ora';
 
 @Command({ name: 'bts-sync', options: { isDefault: true } })
 export class SyncCommand extends CommandRunner {
   private readonly logger = new Logger(SyncCommand.name);
 
-  private schemaDir = './schema-repo';
-  private guidewireDir = './guidewire-repo';
+  private graphQLDir = './graphql-repo';
+  private pcDir = './pc-repo';
 
-  private schemaRepoService: RepoService;
-  private guidewireRepoService: RepoService;
+  private graphQLRepoService: RepoService;
+  private pcRepoService: RepoService;
 
   constructor(
     @Inject('config') private readonly config: any,
@@ -43,12 +48,12 @@ export class SyncCommand extends CommandRunner {
 
   @Option({
     flags: '--sync-type <type>',
-    description: 'Specify the type of sync: frontend or backend',
+    description: 'Specify the type of sync: pc or graphql',
   })
   parseSyncType(value: string): string {
-    if (!['frontend', 'backend'].includes(value)) {
+    if (!['pc', 'graphql'].includes(value)) {
       throw new Error(
-        'Invalid sync type. Valid options are "frontend" or "backend".',
+        'Invalid sync type. Valid options are "pc" or "graphql".',
       );
     }
     return value;
@@ -60,64 +65,89 @@ export class SyncCommand extends CommandRunner {
       syncType = await this.promptForSyncType();
     }
 
-    const schemaRepo = options.schemaRepo || this.config.schemaRepo;
-    const guidewireRepo = options.guidewireRepo || this.config.guidewireRepo;
+    const graphQLRepo = options.graphQLRepo || this.config.graphQLRepo;
+    const pcRepo = options.pcRepo || this.config.pcRepo;
 
-    const schemaHash =
-      options.schemaHash || (await this.promptForHash('schema'));
-    const guidewireHash =
-      options.guidewireHash ||
-      (syncType === 'backend' ? await this.promptForHash('Guidewire') : null);
+    const graphQLHash =
+      options.graphQLHash ||
+      (syncType === 'graphql' ? await this.promptForHash('graphql') : null);
+    const pcHash =
+      options.pcHash ||
+      (syncType === 'pc' ? await this.promptForHash('pc') : null);
 
     // Initialize the repo services
-    this.schemaRepoService = this.repoServiceFactory.create(
-      schemaRepo,
-      this.schemaDir,
-      'Schema Repository',
+    this.graphQLRepoService = this.repoServiceFactory.create(
+      graphQLRepo,
+      this.graphQLDir,
+      'GraphQL',
     );
-    this.guidewireRepoService = this.repoServiceFactory.create(
-      guidewireRepo,
-      this.guidewireDir,
-      'Guidewire Repository',
+    this.pcRepoService = this.repoServiceFactory.create(
+      pcRepo,
+      this.pcDir,
+      'PC',
     );
 
-    this.schemaRepoService.cleanup();
-    this.guidewireRepoService.cleanup();
+    // Delete any repos left over so we can clone them without error now
+    this.graphQLRepoService.cleanup();
+    this.pcRepoService.cleanup();
 
-    if (syncType === 'frontend') {
-      await this.syncFrontend(schemaHash);
-    } else if (syncType === 'backend') {
-      await this.syncBackend(schemaHash, guidewireHash);
+    if (syncType === 'pc') {
+      await this.syncPC(pcHash);
+    } else if (syncType === 'graphql') {
+      await this.syncGraphQL(graphQLHash);
     } else {
-      this.logger.error('Invalid sync type. Use "frontend" or "backend".');
+      this.logger.error('Invalid sync type. Use "pc" or "graphql".');
     }
   }
 
-  private async syncFrontend(schemaHash: string | null) {
-    await this.schemaRepoService.cloneAndCheckout(schemaHash);
+  private async syncGraphQL(graphQLHash: string | null) {
+    await this.graphQLRepoService.cloneAndCheckout(graphQLHash);
 
-    this.logger.log('Scaffolding operations folder...');
-    this.scaffoldFrontend();
+    const spinner = ora('Stitching schemas together...').start();
 
-    await this.generateReactApolloClientTypes();
+    try {
+      const schemaDir = join(this.graphQLDir, 'src/schema/**');
+      const outputPath = './src/generated/schema.graphql';
 
-    this.schemaRepoService.cleanup();
+      const schemas = this.readSchemasFromDirectory(schemaDir);
+
+      writeFileSync(outputPath, printSchema(buildSchema(schemas.join('\n'))));
+
+      spinner.succeed(`Stitched schema written to: ${outputPath}`);
+    } catch (error) {
+      spinner.fail('Failed to stitch schemas together.');
+      throw error;
+    } finally {
+      this.graphQLRepoService.cleanup();
+    }
   }
 
-  private async syncBackend(
-    schemaHash: string | null,
-    guidewireHash: string | null,
-  ) {
-    await this.schemaRepoService.cloneAndCheckout(schemaHash);
+  private readSchemasFromDirectory(directory: string): string[] {
+    if (!existsSync(directory)) {
+      this.logger.warn(`Directory not found: ${directory}`);
+      return [];
+    }
 
-    await this.guidewireRepoService.cloneAndCheckout(guidewireHash);
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const fullPath = join(directory, entry.name);
 
-    await this.generateGuidewireTypes();
+      if (entry.isDirectory())
+        return readdirSync(fullPath)
+          .filter((file) => file.endsWith('.graphql'))
+          .map((file) => readFileSync(join(fullPath, file), 'utf-8'));
+      else if (entry.isFile() && entry.name.endsWith('.graphql'))
+        return [readFileSync(fullPath, 'utf-8')];
 
-    await this.generateGraphQLTypesWithServerPreset();
+      return [];
+    });
+  }
 
-    this.schemaRepoService.cleanup();
-    this.guidewireRepoService.cleanup();
+  private async syncPC(pcHash: string | null) {
+    await this.pcRepoService.cloneAndCheckout(pcHash);
+
+    await this.generatePCTypes();
+
+    this.pcRepoService.cleanup();
   }
 
   private async promptForSyncType(): Promise<string> {
@@ -125,83 +155,13 @@ export class SyncCommand extends CommandRunner {
     return syncType;
   }
 
-  private scaffoldFrontend() {
-    const srcDir = './src';
-    const graphqlDir = join(srcDir, 'graphql');
-    const documentsDir = join(graphqlDir, 'documents');
-
-    [srcDir, graphqlDir, documentsDir].forEach((dir) => {
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-        this.logger.log(`Created: ${dir}`);
-      }
-    });
-  }
-
-  private async generateReactApolloClientTypes() {
-    const outputPath = './src/graphql/generated.ts';
-    const spinner = ora(
-      'Running GraphQL Codegen for React Apollo client types...',
-    ).start();
+  private async generatePCTypes() {
+    const spinner = ora('Generating PC types...').start();
 
     try {
-      await generate({
-        schema: join(this.schemaDir, 'schema.graphql'),
-        documents: './src/graphql/documents/**/*.graphql',
-        generates: {
-          [outputPath]: {
-            plugins: [
-              'typescript',
-              'typescript-operations',
-              {
-                'typescript-react-apollo': {
-                  withHooks: true,
-                  withHOC: false,
-                  withComponent: false,
-                },
-              },
-            ],
-          },
-        },
-      });
-      spinner.succeed(`Generated React Apollo client types at: ${outputPath}`);
-    } catch (error) {
-      spinner.fail('Failed to generate React Apollo client types.');
-      throw error;
-    }
-  }
-
-  private async generateGraphQLTypesWithServerPreset() {
-    const outputPath = './src/generated';
-    const spinner = ora(
-      'Running GraphQL Codegen with server preset...',
-    ).start();
-
-    try {
-      await generate({
-        schema: join(this.schemaDir, '**/schema.graphql'),
-        generates: {
-          [outputPath]: defineConfig({
-            resolverGeneration: 'disabled',
-          }),
-        },
-      });
-      spinner.succeed(
-        `Generated GraphQL server types and resolvers at: ${outputPath}`,
-      );
-    } catch (error) {
-      spinner.fail('Failed to generate GraphQL server types.');
-      throw error;
-    }
-  }
-
-  private async generateGuidewireTypes() {
-    const spinner = ora('Generating Guidewire types...').start();
-
-    try {
-      const swaggerPath = join(this.guidewireDir, 'openapi/doc.json');
+      const swaggerPath = join(this.pcDir, 'openapi/doc.json');
       const outputFolder = './src/generated';
-      const outputPath = join(outputFolder, 'guidewire-types.ts');
+      const outputPath = join(outputFolder, 'pc-types.ts');
 
       // Read OpenAPI spec
       const openAPISpec = readFileSync(swaggerPath, 'utf-8');
@@ -226,9 +186,9 @@ export class SyncCommand extends CommandRunner {
 
       // Write the generated types to file
       writeFileSync(outputPath, types);
-      spinner.succeed(`Generated Guidewire types at: ${outputPath}`);
+      spinner.succeed(`Generated PC types at: ${outputPath}`);
     } catch (error) {
-      spinner.fail('Failed to generate Guidewire types.');
+      spinner.fail('Failed to generate PC types.');
       throw error;
     }
   }
