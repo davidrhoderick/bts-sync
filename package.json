@@ -38,7 +38,9 @@
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
     "simple-git": "^3.27.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "openapi-typescript-v5": "npm:openapi-typescript@^5.4.2",
+    "openapi-typescript": "^7.4.4"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
@@ -57,7 +59,6 @@
     "jest": "^29.5.0",
     "nest-commander-schematics": "^3.0.2",
     "nest-commander-testing": "^3.3.0",
-    "openapi-typescript": "^7.4.4",
     "prettier": "^3.0.0",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
